@@ -52,6 +52,6 @@ RUN if [ -n "${HOROVOD_PIP}" ]; then ldconfig /usr/local/cuda/targets/x86_64-lin
 RUN python -m pip install -r /tmp/det_dockerfile_scripts/additional-requirements.txt
 
 ARG DEEPSPEED_PIP
-RUN if [ -n "$DEEPSPEED_PIP" ]; then /tmp/det_dockerfile_scripts/install_deepspeed.sh; fi
+RUN if [ -n "$DEEPSPEED_PIP" ]; then python -m pip install $DEEPSPEED_PIP; fi
 
 RUN rm -r /tmp/*
