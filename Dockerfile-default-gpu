@@ -5,32 +5,24 @@ COPY dockerfile_scripts /tmp/det_dockerfile_scripts
 
 RUN /tmp/det_dockerfile_scripts/install_google_cloud_sdk.sh
 
-ARG TENSORFLOW_PIP
-ARG TORCH_PIP
-ARG TORCHVISION_PIP
-
-RUN if [ "$TENSORFLOW_PIP" ]; then \
-		export HOROVOD_WITH_TENSORFLOW=1 \
-		&& python -m pip install $TENSORFLOW_PIP; \
-	else \
-		export HOROVOD_WITH_TENSORFLOW=0; \
-	fi
-RUN if [ "$TORCH_PIP" ]; then python -m pip install $TORCH_PIP; fi
-RUN if [ "$TORCHVISION_PIP" ]; then python -m pip install $TORCHVISION_PIP; fi
+ARG CUDA='cu117'
+ARG TORCH_VER
+ARG TORCH_CUDA_ARCH_LIST
+RUN python3 -m pip install --no-cache-dir -U torch=="2.0.0" torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/$CUDA
 
 ARG TF_CUDA_SYM
 RUN if [ "$TF_CUDA_SYM" ]; then ln -s /usr/local/cuda/lib64/libcusolver.so.11 /opt/conda/lib/python3.8/site-packages/tensorflow/python/libcusolver.so.10; fi
 
+
 ARG TORCH_TB_PROFILER_PIP
 RUN if [ "$TORCH_TB_PROFILER_PIP" ]; then python -m pip install $TORCH_TB_PROFILER_PIP; fi
 
-ARG TORCH_CUDA_ARCH_LIST
-
 # recompile apex
-RUN python3 -m pip uninstall -y apex
-RUN git clone https://github.com/NVIDIA/apex
 #  `MAX_JOBS=1` disables parallel building to avoid cpu memory OOM when building image on GitHub Action (standard) runners
-RUN cd apex && MAX_JOBS=1 python3 -m pip install --global-option="--cpp_ext" --global-option="--cuda_ext" --no-cache -v --disable-pip-version-check .
+RUN python3 -m pip uninstall -y apex && \
+	git clone https://github.com/NVIDIA/apex && \
+	cd apex && \
+	MAX_JOBS=1 python3 -m pip install --global-option="--cpp_ext" --global-option="--cuda_ext" --no-cache -v --disable-pip-version-check .
 
 
 ARG DET_BUILD_NCCL=1
@@ -48,33 +40,25 @@ ARG HOROVOD_GPU_OPERATIONS=NCCL
 ARG HOROVOD_WITH_MPI
 ARG HOROVOD_CPU_OPERATIONS
 ARG HOROVOD_WITHOUT_MPI
-RUN pip install cmake==3.22.4 protobuf==3.20.3
-RUN if [ -n "${HOROVOD_PIP}" ]; then ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
+RUN pip install cmake==3.22.4  protobuf==3.20.3 && \
+	if [ -n "${HOROVOD_PIP}" ]; then ldconfig /usr/local/cuda/targets/x86_64-linux/lib/stubs && \
     pip install "$HOROVOD_PIP" && \
     ldconfig; fi
 
-RUN python -m pip install -r /tmp/det_dockerfile_scripts/additional-requirements.txt
-
-RUN apt -y update
-RUN apt install -y libaio-dev
-RUN python3 -m pip install --no-cache-dir --upgrade pip
+RUN python -m pip install -r /tmp/det_dockerfile_scripts/additional-requirements.txt && \
+	apt -y update && \
+	apt install -y libaio-dev \
+	libopenmpi-dev=4.0.3-0ubuntu1
 
 ARG REF=main
-RUN git clone https://github.com/huggingface/transformers && cd transformers && git checkout $REF
-RUN python3 -m pip install --no-cache-dir git+https://github.com/huggingface/accelerate@main#egg=accelerate
-RUN python3 -m pip uninstall -y torch-tensorrt
+RUN git clone https://github.com/huggingface/transformers && cd transformers && git checkout $REF && \
+	python3 -m pip install --no-cache-dir git+https://github.com/huggingface/accelerate@main#egg=accelerate && \
+	python3 -m pip uninstall -y torch-tensorrt
 
-ARG DEEPSPEED_PIP
-RUN if [ "$DEEPSPEED_PIP" ]; then python -m pip install $DEEPSPEED_PIP; fi
-# RUN pip install deepspeed
-# RUN python -m pip uninstall -y deepspeed 
-# # This has to be run (again) inside the GPU VMs running the tests.
-# # The installation works here, but some tests fail, if we don't pre-build deepspeed again in the VMs running the tests.
-# # TODO: Find out why test fail.
-# RUN DS_BUILD_CPU_ADAM=1 DS_BUILD_FUSED_ADAM=1 DS_BUILD_UTILS=1 python -m pip install deepspeed --global-option="build_ext" --global-option="-j8" --no-cache -v --disable-pip-version-check 2>&1
-
-RUN cd transformers && python3 setup.py develop
-
-# The base image ships with `pydantic==1.8.2` which is not working - i.e. the next command fails
-RUN python3 -m pip install -U --no-cache-dir pydantic
-RUN rm -r /tmp/*
+RUN python -m pip uninstall -y deepspeed && \ 
+	python -m pip install ninja && \
+	DS_BUILD_CPU_ADAM=1 DS_BUILD_FUSED_ADAM=1 DS_BUILD_UTILS=1 python -m pip install deepspeed --global-option="build_ext" --global-option="-j8" --no-cache -v --disable-pip-version-check 2>&1 && \
+	cd transformers && python3 setup.py develop && \
+	python3 -m pip install -U --no-cache-dir pydantic && \
+	rm -r /tmp/*
+ENV DET_MASTER="https://determined.corp.deepmirror.com:443"

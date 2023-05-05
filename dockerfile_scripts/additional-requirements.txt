@@ -10,3 +10,8 @@ Pillow>=8.3.2
 analytics-python
 nvidia-ml-py
 protobuf<=3.20.3
+numpy==1.24.2
+datasets==2.10.1
+peft @ git+https://github.com/huggingface/peft.git@deff03f2c251534fffd2511fc2d440e84cc54b1b
+trl @ git+https://github.com/lvwerra/trl.git#egg=trl-0.4.1
+sentencepiece

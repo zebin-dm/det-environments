@@ -19,7 +19,7 @@ TORCH_VERSION="2.0.0"
 DEEPSPEED_VERSION="0.9.1"
 docker build -f Dockerfile-default-gpu \
     --build-arg BASE_IMAGE=${DOCKERHUB_REGISTRY}/det-environments:py-${PYTHON_VERSION}-cuda-${CUDA_VERSION}-${VERSION} \
-    --build-arg TORCH_PIP="torch==${TORCH_VERSION} torchvision torchaudio" \
+    --build-arg TORCH_VER="2.0.0" \
     --build-arg TORCH_TB_PROFILER_PIP="torch-tb-profiler" \
     --build-arg TORCH_CUDA_ARCH_LIST="6.0;6.1;6.2;7.0;7.5;8.0" \
     --build-arg DET_BUILD_NCCL="" \
